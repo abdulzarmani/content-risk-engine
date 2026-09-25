@@ -1,22 +1,25 @@
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 import json
 from datetime import datetime
 
 
 # Configuration (can be moved to config/crisis_config.py later)
+# Load config from environment
 CRISIS_CONFIG = {
-    "enabled": True,
-    "log_incidents": True,
+    "enabled": os.getenv("CRISIS_ENABLED", "true").lower() == "true",
+    "log_incidents": os.getenv("LOG_INCIDENTS", "true").lower() == "true",
     "alert_channels": {
-        "email": True,
-        "sms": False,
-        "webhook": False
+        "email": os.getenv("SEND_EMAIL_ALERTS", "true").lower() == "true",
+        "sms": os.getenv("SEND_SMS_ALERTS", "false").lower() == "true",
+        "webhook": os.getenv("SEND_WEBHOOK_ALERTS", "false").lower() == "true"
     },
-    "guardian_emails": [
-        "parent@example.com",
-        "guardian@example.com"
-    ],
+    "guardian_emails": [e.strip() for e in os.getenv("GUARDIAN_EMAILS", "").split(",") if e.strip()],
     "restricted_mode": {
-        "enabled": True,
+        "enabled": os.getenv("RESTRICTED_MODE_ENABLED", "true").lower() == "true",
         "applies_to": ["self_harm_high", "violence_high"]
     }
 }
