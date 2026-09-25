@@ -1,4 +1,4 @@
-from detector import detect
+from src.detector import detect
 
 
 test_cases = [
