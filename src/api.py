@@ -35,6 +35,7 @@ def detect_risk():
             "message": message,
             "category": detection["category"],
             "risk_level": detection["risk_level"],
+            "confidence": detection["confidence"],
             "action": action["action"],
             "severity": action["severity"],
             "message_to_user": action["message"],
