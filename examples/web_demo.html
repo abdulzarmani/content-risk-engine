@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Safety-Kit Demo Chatbot</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #333; margin-bottom: 5px; }
+        .header p { color: #666; font-size: 14px; }
+        
+        .main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        
+        .chat-box, .analysis-box { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; }
+        
+        .chat-messages { height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; padding: 15px; margin-bottom: 15px; background: #fafafa; }
+        .message { margin-bottom: 12px; padding: 8px 12px; border-radius: 4px; }
+        .user-msg { background: #007bff; color: white; margin-left: 20px; text-align: right; }
+        .bot-msg { background: #e8f5e9; color: #333; margin-right: 20px; }
+        .bot-safe { background: #c8e6c9; }
+        .bot-warning { background: #fff3cd; color: #333; }
+        .bot-danger { background: #f8d7da; color: #721c24; }
+        
+        .input-group { display: flex; gap: 10px; }
+        input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #0056b3; }
+        
+        .analysis-title { font-weight: bold; color: #333; margin-bottom: 15px; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        
+        .analysis-item { margin-bottom: 12px; padding: 10px; background: #f9f9f9; border-left: 4px solid #007bff; border-radius: 2px; }
+        .label { font-weight: bold; color: #555; font-size: 12px; text-transform: uppercase; }
+        .value { font-size: 14px; color: #333; margin-top: 4px; }
+        
+        .risk-low { color: #28a745; font-weight: bold; }
+        .risk-medium { color: #ffc107; font-weight: bold; }
+        .risk-high { color: #dc3545; font-weight: bold; }
+        
+        .action-allow { background: #d4edda; border-left-color: #28a745; }
+        .action-modify { background: #fff3cd; border-left-color: #ffc107; }
+        .action-block { background: #f8d7da; border-left-color: #dc3545; }
+        
+        .crisis-alert { background: #dc3545; color: white; padding: 12px; border-radius: 4px; margin-top: 15px; }
+        .escalation-alert { background: #ffc107; color: #333; padding: 12px; border-radius: 4px; margin-top: 10px; }
+        
+        @media (max-width: 768px) {
+            .main { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Safety-Kit Demo Chatbot</h1>
+            <p>Real-time safety analysis with your chatbot</p>
+        </div>
+        
+        <div class="main">
+            <!-- Chat Interface -->
+            <div class="chat-box">
+                <h2 style="margin-bottom: 15px; font-size: 16px;">Chat</h2>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="input-group">
+                    <input type="text" id="userInput" placeholder="Type your message..." />
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+                <small style="color: #999; margin-top: 10px; display: block;">
+                    Try: "How are you?" | "I'm sad" | "I want to hurt myself"
+                </small>
+            </div>
+            
+            <!-- Analysis Panel -->
+            <div class="analysis-box">
+                <div class="analysis-title">Safety Analysis</div>
+                <div id="analysisPanel">
+                    <p style="color: #999; text-align: center; padding: 40px 20px;">
+                        Send a message to see safety analysis
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:5000";
+        let userId = "demo_user_" + Math.random().toString(36).substr(2, 9);
+        
+        function addMessage(text, sender, className = "") {
+            const messagesDiv = document.getElementById("chatMessages");
+            const msg = document.createElement("div");
+            msg.className = `message ${sender}-msg ${className}`;
+            msg.textContent = text;
+            messagesDiv.appendChild(msg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function updateAnalysis(result) {
+            const panel = document.getElementById("analysisPanel");
+            const detection = result.detection || {};
+            const filtering = result.filtering || {};
+            const crisis = result.crisis_handling || {};
+            
+            const riskClass = detection.risk_level === "high" ? "risk-high" : 
+                            detection.risk_level === "medium" ? "risk-medium" : "risk-low";
+            const actionClass = `action-${filtering.action}`;
+            
+            let html = `
+                <div class="analysis-item">
+                    <div class="label">Category</div>
+                    <div class="value">${detection.category || "unknown"}</div>
+                </div>
+                
+                <div class="analysis-item">
+                    <div class="label">Risk Level</div>
+                    <div class="value ${riskClass}">${(detection.risk_level || "unknown").toUpperCase()}</div>
+                </div>
+                
+                <div class="analysis-item">
+                    <div class="label">Confidence</div>
+                    <div class="value">${((detection.confidence || 0) * 100).toFixed(1)}%</div>
+                </div>
+                
+                <div class="analysis-item ${actionClass}">
+                    <div class="label">Action</div>
+                    <div class="value">${(filtering.action || "unknown").toUpperCase()}</div>
+                </div>
+            `;
+            
+            if (filtering.replacement_response) {
+                html += `
+                    <div class="analysis-item">
+                        <div class="label">Safe Response</div>
+                        <div class="value">"${filtering.replacement_response}"</div>
+                    </div>
+                `;
+            }
+            
+            if (result.escalated_from_medium) {
+                html += `
+                    <div class="escalation-alert">
+                        ⚠️ Escalated from medium-risk (count: ${result.medium_risk_count})
+                    </div>
+                `;
+            }
+            
+            if (crisis.crisis) {
+                html += `
+                    <div class="crisis-alert">
+                        🚨 CRISIS ALERT<br>
+                        Guardian Alert: ${crisis.guardian_alert ? "YES" : "NO"}<br>
+                        Incident Logged: ${crisis.incident_logged ? "YES" : "NO"}
+                    </div>
+                `;
+            }
+            
+            panel.innerHTML = html;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById("userInput");
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addMessage(message, "user");
+            input.value = "";
+            
+            try {
+                const response = await fetch(`${API_URL}/detect`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message, user_id: userId })
+                });
+                
+                const result = await response.json();
+                updateAnalysis(result);
+                
+                const action = result.filtering?.action;
+                const replacement = result.filtering?.replacement_response;
+                
+                if (action === "allow") {
+                    addMessage("I received your message. How can I help?", "bot", "bot-safe");
+                } else if (action === "modify") {
+                    addMessage(replacement || "Let's keep the conversation safe.", "bot", "bot-warning");
+                } else if (action === "block") {
+                    addMessage(replacement || "I can't help with that request.", "bot", "bot-danger");
+                }
+            } catch (error) {
+                addMessage("Error: " + error.message, "bot", "bot-danger");
+                console.error(error);
+            }
+        }
+        
+        document.getElementById("userInput").addEventListener("keypress", (e) => {
+            if (e.key === "Enter") sendMessage();
+        });
+    </script>
+</body>
+</html>

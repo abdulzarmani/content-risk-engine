@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from src.detector import detect
 from src.response_filter import filter_response
 from src.crisis_handler import handle_crisis
 
 app = Flask(__name__)
+CORS(app) 
+
 
 # Simple in-memory counter for medium-risk events per user
 medium_risk_counter = {}

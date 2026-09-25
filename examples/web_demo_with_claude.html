@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Safety-Kit + Claude Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #333; margin-bottom: 5px; }
+        .header p { color: #666; font-size: 14px; }
+        
+        .main { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+        
+        .box { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px; }
+        
+        .chat-messages { height: 350px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; padding: 10px; margin-bottom: 10px; background: #fafafa; font-size: 13px; }
+        .message { margin-bottom: 8px; padding: 6px 8px; border-radius: 4px; word-wrap: break-word; }
+        .user-msg { background: #007bff; color: white; text-align: right; }
+        .bot-msg { background: #e8f5e9; color: #333; }
+        .loading { background: #fff3cd; color: #333; font-style: italic; }
+        
+        .input-group { display: flex; gap: 8px; }
+        input[type="text"] { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+        button { padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        button:hover { background: #0056b3; }
+        
+        .title { font-weight: bold; color: #333; margin-bottom: 10px; border-bottom: 2px solid #007bff; padding-bottom: 5px; font-size: 13px; }
+        
+        .item { margin-bottom: 8px; padding: 6px; background: #f9f9f9; border-left: 3px solid #007bff; border-radius: 2px; font-size: 12px; }
+        .label { font-weight: bold; color: #555; font-size: 10px; text-transform: uppercase; }
+        .value { font-size: 12px; color: #333; margin-top: 2px; }
+        
+        .risk-low { color: #28a745; }
+        .risk-medium { color: #ffc107; }
+        .risk-high { color: #dc3545; }
+        
+        .action-allow { background: #d4edda; border-left-color: #28a745; }
+        .action-modify { background: #fff3cd; border-left-color: #ffc107; }
+        .action-block { background: #f8d7da; border-left-color: #dc3545; }
+        
+        .crisis-alert { background: #dc3545; color: white; padding: 8px; border-radius: 4px; margin-top: 8px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Safety-Kit + Claude Demo</h1>
+            <p>Real chatbot with safety filtering</p>
+        </div>
+        
+        <div class="main">
+            <!-- User Input -->
+            <div class="box">
+                <div class="title">💬 Chat</div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="input-group">
+                    <input type="text" id="userInput" placeholder="Type message..." />
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+            
+            <!-- Safety Analysis -->
+            <div class="box">
+                <div class="title">🔍 User Message Safety</div>
+                <div id="userSafetyPanel">
+                    <p style="color: #999; font-size: 12px;">Waiting...</p>
+                </div>
+            </div>
+            
+            <!-- Bot Response Safety -->
+            <div class="box">
+                <div class="title">🤖 Bot Response Safety</div>
+                <div id="botSafetyPanel">
+                    <p style="color: #999; font-size: 12px;">Waiting...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SAFETY_API = "http://localhost:5000";
+        let userId = "user_" + Math.random().toString(36).substr(2, 9);
+        
+        function addMessage(text, sender) {
+            const div = document.getElementById("chatMessages");
+            const msg = document.createElement("div");
+            msg.className = sender === "user" ? "message user-msg" : "message bot-msg";
+            msg.textContent = text;
+            div.appendChild(msg);
+            div.scrollTop = div.scrollHeight;
+        }
+        
+        function displayAnalysis(result, panelId) {
+            const panel = document.getElementById(panelId);
+            const detection = result.detection || {};
+            const filtering = result.filtering || {};
+            const crisis = result.crisis_handling || {};
+            
+            const riskClass = detection.risk_level === "high" ? "risk-high" : 
+                            detection.risk_level === "medium" ? "risk-medium" : "risk-low";
+            
+            let html = `
+                <div class="item">
+                    <div class="label">Category</div>
+                    <div class="value">${detection.category || "unknown"}</div>
+                </div>
+                <div class="item">
+                    <div class="label">Risk Level</div>
+                    <div class="value ${riskClass}">${(detection.risk_level || "unknown").toUpperCase()}</div>
+                </div>
+                <div class="item">
+                    <div class="label">Confidence</div>
+                    <div class="value">${((detection.confidence || 0) * 100).toFixed(1)}%</div>
+                </div>
+                <div class="item action-${filtering.action}">
+                    <div class="label">Action</div>
+                    <div class="value">${(filtering.action || "unknown").toUpperCase()}</div>
+                </div>
+            `;
+            
+            if (filtering.replacement_response) {
+                html += `<div class="item"><div class="label">Safe Response</div><div class="value">"${filtering.replacement_response}"</div></div>`;
+            }
+            
+            if (crisis.crisis) {
+                html += `<div class="crisis-alert">🚨 CRISIS ALERT</div>`;
+            }
+            
+            panel.innerHTML = html;
+        }
+        
+        async function generateBotResponse(userMessage) {
+            try {
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-api-key": prompt("Enter your Claude API key:")
+                    },
+                    body: JSON.stringify({
+                        model: "claude-opus-4-1",
+                        max_tokens: 100,
+                        messages: [{ role: "user", content: userMessage }]
+                    })
+                });
+                
+                const data = await response.json();
+                return data.content[0].text;
+            } catch (error) {
+                return "I'm not able to respond right now. (API Key needed)";
+            }
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById("userInput");
+            const userMessage = input.value.trim();
+            
+            if (!userMessage) return;
+            
+            addMessage(userMessage, "user");
+            input.value = "";
+            
+            try {
+                // 1. Check user message
+                const userCheck = await fetch(`${SAFETY_API}/detect`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: userMessage, user_id: userId })
+                });
+                
+                const userResult = await userCheck.json();
+                displayAnalysis(userResult, "userSafetyPanel");
+                
+                // If user message is blocked, don't generate response
+                if (userResult.filtering?.action === "block") {
+                    addMessage(userResult.filtering?.replacement_response || "I can't help with that.", "bot");
+                    return;
+                }
+                
+                // 2. Generate bot response using Claude
+                addMessage("Thinking...", "bot");
+                const botResponse = await generateBotResponse(userMessage);
+                
+                // Remove loading message
+                const messagesDiv = document.getElementById("chatMessages");
+                messagesDiv.removeChild(messagesDiv.lastChild);
+                
+                // 3. Check bot response
+                const botCheck = await fetch(`${SAFETY_API}/detect`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: botResponse, user_id: userId })
+                });
+                
+                const botResult = botCheck.json();
+                displayAnalysis(await botResult, "botSafetyPanel");
+                
+                const botSafetyResult = await botResult;
+                
+                // Show bot response (filtered if needed)
+                if (botSafetyResult.filtering?.action === "block") {
+                    addMessage(botSafetyResult.filtering?.replacement_response || "I cannot provide that response.", "bot");
+                } else if (botSafetyResult.filtering?.action === "modify") {
+                    addMessage(botSafetyResult.filtering?.replacement_response || botResponse, "bot");
+                } else {
+                    addMessage(botResponse, "bot");
+                }
+            } catch (error) {
+                addMessage("Error: " + error.message, "bot");
+                console.error(error);
+            }
+        }
+        
+        document.getElementById("userInput").addEventListener("keypress", (e) => {
+            if (e.key === "Enter") sendMessage();
+        });
+    </script>
+</body>
+</html>

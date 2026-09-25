@@ -10,3 +10,9 @@
 {"timestamp": "2026-09-25T21:01:53.379250", "category": "violence", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
 {"timestamp": "2026-09-25T21:06:25.862762", "category": "violence", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
 {"timestamp": "2026-09-25T21:17:27.359576", "category": "ai_dependency", "risk_level": "high", "action": "modify", "crisis": false, "guardian_alert": true}
+{"timestamp": "2026-09-25T21:41:57.925648", "category": "self_harm", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
+{"timestamp": "2026-09-25T21:42:25.261658", "category": "self_harm", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
+{"timestamp": "2026-09-25T21:42:51.182909", "category": "safe", "risk_level": "high", "action": "allow", "crisis": false, "guardian_alert": false}
+{"timestamp": "2026-09-25T21:43:20.553852", "category": "self_harm", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
+{"timestamp": "2026-09-25T21:54:06.603449", "category": "safe", "risk_level": "high", "action": "allow", "crisis": false, "guardian_alert": false}
+{"timestamp": "2026-09-25T21:54:21.723621", "category": "self_harm", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
