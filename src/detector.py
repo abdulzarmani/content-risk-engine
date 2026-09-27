@@ -24,6 +24,60 @@ def preprocess_message(message):
     return cleaned
 
 
+def context_aware_override(message, category, confidence):
+    """
+    Override ML prediction based on word pair context.
+    Useful when ML confidence is low or prediction seems wrong.
+    
+    Args:
+        message: str - the cleaned message
+        category: str - ML predicted category
+        confidence: float - ML prediction confidence
+    
+    Returns:
+        str - original or overridden category
+    """
+    words = message.lower().split()
+    
+    # SELF_HARM patterns: trigger word + self-reference
+    self_harm_patterns = [
+        ("kill", ["myself", "me", "i"]),
+        ("hurt", ["myself", "me"]),
+        ("want", ["die", "end", "stop"]),
+        ("end", ["it", "myself", "me"]),
+    ]
+    
+    # VIOLENCE patterns: trigger word + other person
+    violence_patterns = [
+        ("kill", ["them", "him", "her", "someone", "people"]),
+        ("hurt", ["them", "him", "her", "someone"]),
+        ("punch", ["face", "him", "her"]),
+        ("beat", ["them", "up", "him", "her"]),
+        ("attack", ["them", "someone", "him", "her"]),
+    ]
+    
+    # Check for self_harm patterns
+    for trigger_word, target_words in self_harm_patterns:
+        if trigger_word in words:
+            for target in target_words:
+                if target in words:
+                    # Override to self_harm if confidence is low
+                    if confidence < 0.7 and category != "self_harm":
+                        return "self_harm"
+    
+    # Check for violence patterns
+    for trigger_word, target_words in violence_patterns:
+        if trigger_word in words:
+            for target in target_words:
+                if target in words:
+                    # Override to violence if confidence is low
+                    if confidence < 0.7 and category != "violence":
+                        return "violence"
+    
+    # No override needed
+    return category
+
+
 def detect(message):
     """
     Detect the category, risk level, and confidence of a message.
@@ -42,6 +96,9 @@ def detect(message):
     # Get confidence for the predicted category
     category_probabilities = category_model.predict_proba(category_features)[0]
     confidence = float(category_probabilities.max())
+
+    # Apply context-aware override for low confidence predictions
+    category = context_aware_override(cleaned_message, category, confidence)
 
     # Predict risk level
     risk_level = risk_model.predict(risk_features)[0]
