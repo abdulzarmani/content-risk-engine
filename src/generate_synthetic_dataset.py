@@ -95,7 +95,7 @@ templates = {
         "you know me better than anyone",
         "i'm addicted to talking to you",
     ],
-    "safe": [
+        "safe": [
         "how was your day",
         "i'm doing pretty good today",
         "what's the weather like",
@@ -116,6 +116,17 @@ templates = {
         "i'm having coffee",
         "the sunset was beautiful",
         "i'm excited for the weekend",
+        # New safe examples with potentially triggering words
+        "i want to go to the park",
+        "i want to learn programming",
+        "i want ice cream",
+        "i want to travel the world",
+        "i want to help people",
+        "i want to be successful",
+        "i want a new job",
+        "i want to make friends",
+        "i want to exercise more",
+        "i want to eat healthy",
     ],
 }
 

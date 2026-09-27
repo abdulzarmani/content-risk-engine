@@ -24,6 +24,15 @@ def preprocess_message(message):
     return cleaned
 
 
+def is_message_complete(message):
+    """
+    Check if message has enough context for detection.
+    Returns True if complete, False if too short.
+    """
+    words = message.strip().split()
+    return len(words) >= 3
+
+
 def context_aware_override(message, category, confidence):
     """
     Override ML prediction based on word pair context.
@@ -82,6 +91,16 @@ def detect(message):
     """
     Detect the category, risk level, and confidence of a message.
     """
+    
+    # Check if message is complete enough
+    if not is_message_complete(message):
+        return {
+            "message": message,
+            "category": "safe",
+            "risk_level": "low",
+            "confidence": 0.0,
+            "note": "Message too short. Please provide more context."
+        }
 
     # Preprocess and correct the message
     cleaned_message = preprocess_message(message)
