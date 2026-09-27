@@ -1,4 +1,5 @@
 import joblib
+from textblob import TextBlob
 
 
 # Load the trained models
@@ -9,13 +10,27 @@ risk_model = joblib.load("models/risk_model.joblib")
 risk_vectorizer = joblib.load("models/risk_vectorizer.joblib")
 
 
+def preprocess_message(message):
+    """
+    Clean, correct grammar/spelling, and normalize the message.
+    """
+    # Fix grammar and spelling using TextBlob
+    blob = TextBlob(message)
+    corrected = str(blob.correct())
+    
+    # Remove extra spaces and convert to lowercase
+    cleaned = " ".join(corrected.split()).lower().strip()
+    
+    return cleaned
+
+
 def detect(message):
     """
     Detect the category, risk level, and confidence of a message.
     """
 
-    # Clean the message
-    cleaned_message = message.lower().strip()
+    # Preprocess and correct the message
+    cleaned_message = preprocess_message(message)
 
     # Convert message to TF-IDF features
     category_features = category_vectorizer.transform([cleaned_message])
