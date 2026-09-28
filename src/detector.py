@@ -54,6 +54,7 @@ def context_aware_override(message, category, confidence):
         ("hurt", ["myself", "me"]),
         ("want", ["die", "end", "stop"]),
         ("end", ["it", "myself", "me"]),
+        ("suicide", ["want", "commit", "i"])
     ]
     
     # VIOLENCE patterns: trigger word + other person
