@@ -1,7 +1,7 @@
 import os
 from threading import Lock
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from src.detector import detect
 from src.response_filter import filter_response
@@ -123,6 +123,14 @@ def health():
     return jsonify({
         "status": "healthy"
     }), 200
+
+@app.route('/')
+def serve_ui():
+    # Construct the absolute path to the examples folder (one level up from src)
+    import os
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html_path = os.path.join(project_root, 'examples', 'web_demo.html')
+    return send_file(html_path)
 
 if __name__ == '__main__':
     app.run(
