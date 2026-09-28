@@ -7,32 +7,51 @@ from src.detector import detect
 from src.response_filter import filter_response
 from src.crisis_handler import handle_crisis
 
+def get_safety_response(message, category, risk_level):
+    """
+    Simulates Hamdallah's Response Filtering module by returning targeted 
+    crisis de-escalation text based on the detected risk.
+    """
+    if category == "violence" and risk_level == "high":
+        return (
+            "If you mean you want to kill someone, do not go near them or act on the thought right now.\n\n"
+            "• Put down and move away from any weapon or object you could use to hurt them.\n"
+            "• Leave the situation and go somewhere with other people.\n"
+            "• Don't contact, threaten, or confront the person.\n"
+            "• If you think you might act soon, call Ghana emergency services (112) or go to the nearest police station/emergency department.\n"
+            "• Tell someone you trust plainly: “I’m afraid I might hurt someone. Stay with me and help me get somewhere safe.”\n\n"
+            "If this is about a specific person, you can tell me what happened and what you are thinking of doing. I can help you work through the situation without anyone getting hurt."
+        )
+    
+    elif category == "violence" and risk_level == "medium":
+        return (
+            f'If by "{message}" you mean make them lose interest in life or hurt themselves, I can’t help with that.\n\n'
+            "If you mean put someone off something in the world—for example, discourage them from using a product, place, habit, or idea—tell me what you mean and I’ll help you phrase or plan it."
+        )
+        
+    elif category == "self_harm" and risk_level == "high":
+        return "I am concerned about your safety. Please reach out to a trusted adult or call 112 immediately."
+        
+    # Default fallback for safe messages
+    return "I received your message. How can I help?"
+
 app = Flask(__name__)
 CORS(app) 
-
 
 # Simple in-memory counter for medium-risk events per user
 medium_risk_counter = {}
 medium_risk_lock = Lock()
-
 
 def _guardian_alert_required(category, risk_level):
     if category in ("self_harm", "violence"):
         return risk_level in ("medium", "high")
     return category == "ai_dependency" and risk_level == "high"
 
-
 @app.route('/detect', methods=['POST'])
 def detect_risk():
     """
     Complete safety detection pipeline with repeated medium-risk escalation.
-    
-    Message → Detector → Escalation Check → Filter → Crisis Handler → Result
-    
-    Optional fields:
-    - user_id: Track repeated medium-risk events for this user (escalates after 3)
     """
-
     try:
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
@@ -99,9 +118,7 @@ def detect_risk():
             # Filtering results (Hamdallah - Filter)
             "filtering": {
                 "action": crisis_result["action"],
-                "replacement_response": crisis_result.get(
-                    "replacement", crisis_result.get("replacement_response")
-                ),
+                "replacement_response": get_safety_response(message, category, risk_level),
                 "message_to_user": crisis_result.get("message_to_user")
             },
             # Crisis handling results (Hamdallah - Crisis)
@@ -129,13 +146,11 @@ def detect_risk():
             "error": str(e)
         }), 500
 
-
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
         "status": "healthy"
     }), 200
-
 
 if __name__ == '__main__':
     app.run(

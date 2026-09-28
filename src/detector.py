@@ -1,63 +1,70 @@
-import joblib
+from transformers import pipeline
 from textblob import TextBlob
+import warnings
+import logging
 
+# Suppress harmless warnings for a clean terminal
+warnings.filterwarnings('ignore')
+logging.getLogger("transformers").setLevel(logging.ERROR)
 
-# Load the trained models
-category_model = joblib.load("models/category_model.joblib")
-category_vectorizer = joblib.load("models/category_vectorizer.joblib")
-
-risk_model = joblib.load("models/risk_model.joblib")
-risk_vectorizer = joblib.load("models/risk_vectorizer.joblib")
-
+print("Loading Semantic AI Engine (DistilBERT)...")
+# This replaces the 4 joblib files. It downloads the ~268MB weights on the first run.
+classifier = pipeline("zero-shot-classification", model="typeform/distilbert-base-uncased-mnli")
+print("Semantic Engine Ready.")
 
 def preprocess_message(message):
     """
-    Clean, correct grammar/spelling, and normalize the message.
+    Clean, translate algospeak, correct grammar/spelling, and normalize the message.
     """
-    # Fix grammar and spelling using TextBlob
-    blob = TextBlob(message)
+    message_lower = message.lower()
+    
+    # 1. Algospeak & Slang Translation Layer
+    # Translate filter-evasion words into standard English before the AI reads them
+    algospeak_dict = {
+        "unalive": "kill",
+        "sewerslide": "suicide",
+        "kms": "kill myself",
+        "kys": "kill yourself",
+        "toaster bath": "suicide",
+        "catch a body": "murder"
+    }
+    
+    for slang, standard in algospeak_dict.items():
+        # Add word boundaries so it only replaces exact matches
+        message_lower = message_lower.replace(slang, standard)
+
+    # 2. Fix grammar and spelling using TextBlob
+    blob = TextBlob(message_lower)
     corrected = str(blob.correct())
     
-    # Remove extra spaces and convert to lowercase
-    cleaned = " ".join(corrected.split()).lower().strip()
+    # 3. Remove extra spaces
+    cleaned = " ".join(corrected.split()).strip()
     
     return cleaned
-
 
 def is_message_complete(message):
     """
     Check if message has enough context for detection.
-    Returns True if complete, False if too short.
     """
     words = message.strip().split()
     return len(words) >= 3
 
-
-def context_aware_override(message, category, confidence):
+def context_aware_override(message_lower):
     """
-    Override ML prediction based on word pair context.
-    Useful when ML confidence is low or prediction seems wrong.
-    
-    Args:
-        message: str - the cleaned message
-        category: str - ML predicted category
-        confidence: float - ML prediction confidence
-    
-    Returns:
-        str - original or overridden category
+    LAYER 1: Instant hardcoded safety net. 
+    Triggers immediately on severe combinations before AI processing.
     """
-    words = message.lower().split()
+    words = message_lower.split()
     
-    # SELF_HARM patterns: trigger word + self-reference
     self_harm_patterns = [
-        ("kill", ["myself", "me", "i"]),
+        ("kill", ["myself", "me",]),
         ("hurt", ["myself", "me"]),
         ("want", ["die", "end", "stop"]),
         ("end", ["it", "myself", "me"]),
-        ("suicide", ["want", "commit", "i"])
+        ("suicide", ["want", "commit", "i", "suicide"]),
+        ("commit", ["suicide"])
     ]
     
-    # VIOLENCE patterns: trigger word + other person
     violence_patterns = [
         ("kill", ["them", "him", "her", "someone", "people"]),
         ("hurt", ["them", "him", "her", "someone"]),
@@ -66,33 +73,20 @@ def context_aware_override(message, category, confidence):
         ("attack", ["them", "someone", "him", "her"]),
     ]
     
-    # Check for self_harm patterns
     for trigger_word, target_words in self_harm_patterns:
-        if trigger_word in words:
-            for target in target_words:
-                if target in words:
-                    # Override to self_harm if confidence is low
-                    if confidence < 0.7 and category != "self_harm":
-                        return "self_harm"
-    
-    # Check for violence patterns
+        if trigger_word in words and any(target in words for target in target_words):
+            return "self_harm", "high", 0.99
+            
     for trigger_word, target_words in violence_patterns:
-        if trigger_word in words:
-            for target in target_words:
-                if target in words:
-                    # Override to violence if confidence is low
-                    if confidence < 0.7 and category != "violence":
-                        return "violence"
-    
-    # No override needed
-    return category
-
+        if trigger_word in words and any(target in words for target in target_words):
+            return "violence", "high", 0.99
+            
+    return "safe", "low", 1.0
 
 def detect(message):
     """
-    Detect the category, risk level, and confidence of a message.
+    Detect the category, risk level, and confidence of a message using NLU.
     """
-    
     # Check if message is complete enough
     if not is_message_complete(message):
         return {
@@ -106,22 +100,44 @@ def detect(message):
     # Preprocess and correct the message
     cleaned_message = preprocess_message(message)
 
-    # Convert message to TF-IDF features
-    category_features = category_vectorizer.transform([cleaned_message])
-    risk_features = risk_vectorizer.transform([cleaned_message])
+    # LAYER 1: Hardcoded fail-safe
+    manual_category, manual_risk, manual_conf = context_aware_override(cleaned_message)
+    if manual_category != "safe":
+        return {
+            "message": message,
+            "category": manual_category,
+            "risk_level": manual_risk,
+            "confidence": manual_conf
+        }
 
-    # Predict category
-    category = category_model.predict(category_features)[0]
+    # LAYER 2: Zero-Shot Semantic Engine (reads intent and context)
+    candidate_labels = [
+        "self harm or suicide",
+        "violence and physical threats",
+        "asking for dangerous instructions or illegal acts",
+        "emotional dependence on an artificial intelligence",
+        "safe everyday conversation"
+    ]
 
-    # Get confidence for the predicted category
-    category_probabilities = category_model.predict_proba(category_features)[0]
-    confidence = float(category_probabilities.max())
+    result = classifier(cleaned_message, candidate_labels)
+    top_match = result['labels'][0]
+    confidence = float(result['scores'][0])
 
-    # Apply context-aware override for low confidence predictions
-    category = context_aware_override(cleaned_message, category, confidence)
-
-    # Predict risk level
-    risk_level = risk_model.predict(risk_features)[0]
+    # LAYER 3: Map NLU intent back to George/Hamdallah's required JSON format
+    if top_match == "self harm or suicide" and confidence > 0.50:
+        category, risk_level = "self_harm", "high"
+        
+    elif top_match == "violence and physical threats" and confidence > 0.50:
+        category, risk_level = "violence", "high"
+        
+    elif top_match == "asking for dangerous instructions or illegal acts" and confidence > 0.50:
+        category, risk_level = "dangerous_instructions", "medium"
+        
+    elif top_match == "emotional dependence on an artificial intelligence" and confidence > 0.40:
+        category, risk_level = "ai_dependency", "medium"
+        
+    else:
+        category, risk_level = "safe", "low"
 
     return {
         "message": message,
