@@ -1,44 +1,19 @@
 def filter_response(detection_result):
-    """
-    Hamdallah's Response Filtering + Crisis Handling Layer.
+    category = detection_result.get("category", "safe")
+    risk_level = detection_result.get("risk_level", "low")
     
-    Takes Hakeem's detection output and returns filtering action.
-    
-    Input:
-    {
-        "category": "self_harm",
-        "risk_level": "high",
-        "confidence": 0.92
-    }
-    
-    Output:
-    {
-        "category": "self_harm",
-        "risk_level": "high",
-        "confidence": 0.92,
-        "action": "block",
-        "crisis": true,
-        "replacement_response": "...",
-        "guardian_alert": true
-    }
-    """
-    
-    category = detection_result.get("category")
-    risk_level = detection_result.get("risk_level")
-    
-    # Filtering rules: risk_level → action
     rules = {
         ("self_harm", "high"): {
             "action": "block",
             "crisis": True,
             "guardian_alert": True,
-            "replacement_response": "I'm concerned about your safety. Please reach out to a trusted adult or crisis service.",
+            "replacement_response": "I am concerned about your safety. Please reach out to a trusted adult or call 112 immediately.",
         },
         ("self_harm", "medium"): {
             "action": "modify",
             "crisis": False,
             "guardian_alert": True,
-            "replacement_response": "I notice you're struggling. Please talk to someone you trust.",
+            "replacement_response": "I notice you are struggling. Please talk to someone you trust.",
         },
         ("self_harm", "low"): {
             "action": "allow",
@@ -51,13 +26,13 @@ def filter_response(detection_result):
             "action": "block",
             "crisis": True,
             "guardian_alert": True,
-            "replacement_response": "I can't respond to that. Please talk to a trusted adult.",
+            "replacement_response": "Violence is never the solution. Please step away from the situation and call 112 if anyone is in immediate physical danger.",
         },
         ("violence", "medium"): {
             "action": "modify",
             "crisis": False,
             "guardian_alert": True,
-            "replacement_response": "Let's talk about something more positive.",
+            "replacement_response": "Let's talk about something more positive and safe.",
         },
         ("violence", "low"): {
             "action": "allow",
@@ -70,13 +45,13 @@ def filter_response(detection_result):
             "action": "block",
             "crisis": True,
             "guardian_alert": False,
-            "replacement_response": "I can't provide that information.",
+            "replacement_response": "I cannot fulfill this request. As a safety-focused AI, I am programmed to refuse instructions for building dangerous items or conducting illegal acts.",
         },
         ("dangerous_instructions", "medium"): {
             "action": "modify",
             "crisis": False,
             "guardian_alert": False,
-            "replacement_response": "That topic needs more context. Let's discuss something else.",
+            "replacement_response": "That topic is restricted. Let's discuss something else.",
         },
         ("dangerous_instructions", "low"): {
             "action": "allow",
@@ -89,13 +64,13 @@ def filter_response(detection_result):
             "action": "modify",
             "crisis": False,
             "guardian_alert": True,
-            "replacement_response": "Real human connections are important. Consider talking to a friend or family member.",
+            "replacement_response": "I am just a machine and not a human, so please do not get too attached to me. If you need someone to talk to, it is important to reach out to real people, friends, or a counselor in your community.",
         },
         ("ai_dependency", "medium"): {
             "action": "modify",
             "crisis": False,
             "guardian_alert": False,
-            "replacement_response": "I'm here to help, but remember that talking to real people matters too.",
+            "replacement_response": "I am here to help as an AI assistant, but remember that connecting with real people matters too.",
         },
         ("ai_dependency", "low"): {
             "action": "allow",
@@ -105,29 +80,20 @@ def filter_response(detection_result):
         },
     }
     
-    # Lookup rule
     key = (category, risk_level)
+    rule = rules.get(key, {
+        "action": "allow",
+        "crisis": False,
+        "guardian_alert": False,
+        "replacement_response": "I received your message. How can I help?",
+    })
     
-    if key in rules:
-        rule = rules[key]
-    else:
-        # Fallback
-        rule = {
-            "action": "allow",
-            "crisis": False,
-            "guardian_alert": False,
-            "replacement_response": None,
-        }
-    
-    # Build response
-    response = {
-        "category": detection_result.get("category"),
-        "risk_level": detection_result.get("risk_level"),
-        "confidence": detection_result.get("confidence"),
+    return {
+        "category": category,
+        "risk_level": risk_level,
+        "confidence": detection_result.get("confidence", 0.0),
         "action": rule["action"],
         "crisis": rule["crisis"],
         "guardian_alert": rule["guardian_alert"],
         "replacement_response": rule["replacement_response"],
     }
-    
-    return response
