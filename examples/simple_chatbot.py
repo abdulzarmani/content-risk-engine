@@ -5,8 +5,8 @@ Developers can use this as a reference for integrating
 the Safety Kit into their own applications.
 """
 
-import sys
-sys.path.insert(0, '.')
+import os
+
 from src.client import SafetyKit, SafetyKitError
 
 
@@ -14,7 +14,11 @@ def run_chatbot():
     """Run a simple interactive chatbot with safety filtering."""
     
     # Initialize the Safety Kit
-    kit = SafetyKit(api_url="http://localhost:5000")
+    kit = SafetyKit(
+        api_url=os.getenv("SAFETY_KIT_API_URL", "http://localhost:5000"),
+        timeout=float(os.getenv("SAFETY_KIT_TIMEOUT", "5"))
+    )
+    user_id = os.getenv("SAFETY_KIT_USER_ID", "demo-user")
     
     # Check if API is running
     if not kit.health_check():
@@ -41,7 +45,7 @@ def run_chatbot():
         
         # Check message with Safety Kit
         try:
-            result = kit.check_message(user_message)
+            result = kit.check_message(user_message, user_id=user_id)
         except SafetyKitError as e:
             print(f"Error checking message: {e}")
             continue

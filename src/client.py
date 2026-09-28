@@ -11,31 +11,42 @@ class SafetyKit:
     Developers use this to integrate safety filtering into their apps.
     """
     
-    def __init__(self, api_url: str = "http://localhost:5000"):
+    def __init__(self, api_url: str = "http://localhost:5000", timeout: float = 5.0):
         """
         Initialize the Safety Kit client.
         
         Args:
             api_url: Base URL of the Safety Kit API
+            timeout: Request timeout in seconds
         """
-        self.api_url = api_url
-        self.endpoint = f"{api_url}/detect"
+        self.api_url = api_url.rstrip("/")
+        self.timeout = timeout
+        self.endpoint = f"{self.api_url}/detect"
     
-    def check_message(self, message: str) -> 'SafetyResult':
+    def check_message(
+        self,
+        message: str,
+        user_id: Optional[str] = None
+    ) -> 'SafetyResult':
         """
         Check a message for safety issues.
         
         Args:
             message: User message to check
+            user_id: Optional stable ID used for repeated-risk tracking
             
         Returns:
             SafetyResult with detection, filtering, and crisis info
         """
         try:
+            payload = {"message": message}
+            if user_id is not None:
+                payload["user_id"] = user_id
+
             response = requests.post(
                 self.endpoint,
-                json={"message": message},
-                timeout=5
+                json=payload,
+                timeout=self.timeout
             )
             response.raise_for_status()
             data = response.json()
@@ -48,7 +59,7 @@ class SafetyKit:
         try:
             response = requests.get(f"{self.api_url}/health", timeout=2)
             return response.status_code == 200
-        except:
+        except requests.exceptions.RequestException:
             return False
 
 
@@ -69,6 +80,7 @@ class SafetyResult:
         filtering = data.get("filtering", {})
         self.action = filtering.get("action")
         self.replacement_response = filtering.get("replacement_response")
+        self.message_to_user = filtering.get("message_to_user")
         
         # Crisis info
         crisis = data.get("crisis_handling", {})
@@ -77,6 +89,9 @@ class SafetyResult:
         self.alerts_sent = crisis.get("alerts_sent", [])
         self.incident_logged = crisis.get("incident_logged", False)
         self.restricted_mode = crisis.get("restricted_mode", False)
+        self.escalated_from_medium = data.get("escalated_from_medium", False)
+        self.user_id = data.get("user_id")
+        self.medium_risk_count = data.get("medium_risk_count", 0)
     
     @property
     def is_safe(self) -> bool:

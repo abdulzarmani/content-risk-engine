@@ -1,3 +1,6 @@
+import os
+from threading import Lock
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from src.detector import detect
@@ -10,6 +13,13 @@ CORS(app)
 
 # Simple in-memory counter for medium-risk events per user
 medium_risk_counter = {}
+medium_risk_lock = Lock()
+
+
+def _guardian_alert_required(category, risk_level):
+    if category in ("self_harm", "violence"):
+        return risk_level in ("medium", "high")
+    return category == "ai_dependency" and risk_level == "high"
 
 
 @app.route('/detect', methods=['POST'])
@@ -24,57 +34,75 @@ def detect_risk():
     """
 
     try:
-        data = request.get_json(silent=True) or {}
-        message = data.get("message")
-        user_id = data.get("user_id")  # Optional
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            data = {}
 
-        if not message or not isinstance(message, str):
+        message = data.get("message")
+        user_id = data.get("user_id")
+
+        if not isinstance(message, str) or not message.strip():
             return jsonify({
                 "error": "A valid message field is required"
             }), 400
+        if user_id is not None and not isinstance(user_id, str):
+            return jsonify({"error": "user_id must be a string"}), 400
+        if user_id is not None:
+            user_id = user_id.strip() or None
 
         # STEP 1: Hakeem's Detection
         detection = detect(message)
+        category = detection["category"]
+        risk_level = detection.get("risk_level", detection.get("risk"))
         
         # STEP 1.5: Check for repeated medium-risk escalation
         escalated_from_medium = False
-        if user_id and detection["risk_level"] == "medium":
-            # Increment counter for this user
-            if user_id not in medium_risk_counter:
-                medium_risk_counter[user_id] = 0
-            
-            medium_risk_counter[user_id] += 1
-            
-            # After 3 medium events, escalate to high
-            if medium_risk_counter[user_id] >= 3:
-                detection["risk_level"] = "high"
-                escalated_from_medium = True
-                # Reset counter after escalation
-                medium_risk_counter[user_id] = 0
+        if user_id and risk_level == "medium":
+            with medium_risk_lock:
+                medium_risk_counter[user_id] = medium_risk_counter.get(user_id, 0) + 1
+
+                # After 3 medium events, escalate to high.
+                if medium_risk_counter[user_id] >= 3:
+                    risk_level = "high"
+                    escalated_from_medium = True
+                    medium_risk_counter[user_id] = 0
 
         # STEP 2: Hamdallah's Response Filtering
         filter_result = filter_response({
-            "category": detection["category"],
-            "risk_level": detection["risk_level"],
+            "category": category,
+            "risk_level": risk_level,
             "confidence": detection.get("confidence", 0.0)
         })
 
+        # Adapt the filter contract to the fields required by crisis handling.
+        crisis_context = {
+            **filter_result,
+            "category": category,
+            "risk_level": risk_level,
+            "guardian_alert": filter_result.get(
+                "guardian_alert", _guardian_alert_required(category, risk_level)
+            )
+        }
+
         # STEP 3: Hamdallah's Crisis Handling
-        crisis_result = handle_crisis(filter_result)
+        crisis_result = handle_crisis(crisis_context)
 
         # Build complete response
         response = {
             # Detection results (Hakeem)
             "detection": {
                 "message": message,
-                "category": detection["category"],
-                "risk_level": detection["risk_level"],
+                "category": category,
+                "risk_level": risk_level,
                 "confidence": detection.get("confidence", 0.0)
             },
             # Filtering results (Hamdallah - Filter)
             "filtering": {
                 "action": crisis_result["action"],
-                "replacement_response": crisis_result["replacement_response"]
+                "replacement_response": crisis_result.get(
+                    "replacement", crisis_result.get("replacement_response")
+                ),
+                "message_to_user": crisis_result.get("message_to_user")
             },
             # Crisis handling results (Hamdallah - Crisis)
             "crisis_handling": {
@@ -91,7 +119,8 @@ def detect_risk():
         # Include user context if provided
         if user_id:
             response["user_id"] = user_id
-            response["medium_risk_count"] = medium_risk_counter.get(user_id, 0)
+            with medium_risk_lock:
+                response["medium_risk_count"] = medium_risk_counter.get(user_id, 0)
 
         return jsonify(response), 200
 
@@ -109,4 +138,8 @@ def health():
 
 
 if __name__ == '__main__':
-   app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(
+        host=os.getenv("API_HOST", "0.0.0.0"),
+        port=int(os.getenv("API_PORT", "5000")),
+        debug=os.getenv("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
+    )
