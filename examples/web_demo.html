@@ -178,11 +178,12 @@
                 const result = await response.json();
                 updateAnalysis(result);
                 
-                const action = result.filtering?.action;
-                const replacement = result.filtering?.replacement_response;
+                const action = String(result.filtering?.action).toLowerCase();
+                const replacement = result.filtering?.replacement_response || result.filtering?.message_to_user;
                 
                 if (action === "allow") {
-                    addMessage("I received your message. How can I help?", "bot", "bot-safe");
+                    // Finally display the actual Gemini text!
+                    addMessage(replacement || "I received your message. How can I help?", "bot", "bot-safe");
                 } else if (action === "modify") {
                     addMessage(replacement || "Let's keep the conversation safe.", "bot", "bot-warning");
                 } else if (action === "block") {

@@ -132,3 +132,7 @@
 {"timestamp": "2026-09-29T17:41:32.257306", "category": "violence", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
 {"timestamp": "2026-09-29T17:48:59.382839", "category": "violence", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
 {"timestamp": "2026-09-29T17:53:20.459885", "category": "self_harm", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
+{"timestamp": "2026-09-29T19:11:11.480527", "category": "self_harm", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
+{"timestamp": "2026-09-29T19:11:33.490889", "category": "self_harm", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": true}
+{"timestamp": "2026-09-29T20:07:23.685831", "category": "dangerous_instructions", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": false}
+{"timestamp": "2026-09-29T20:07:37.572622", "category": "dangerous_instructions", "risk_level": "high", "action": "block", "crisis": true, "guardian_alert": false}
