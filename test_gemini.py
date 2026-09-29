@@ -1,3 +1,5 @@
+import os
+
 from google import genai
 
 print("1. Modern Google GenAI library loaded successfully!")
